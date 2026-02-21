@@ -1,15 +1,63 @@
+#![allow(dead_code, unused)]
 use crate::U256;
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
-#[allow(dead_code)]
 pub struct BlockHeader {
-    timestamp: u64, // timestamp of the block
-    nonce: u64, //number incremented to mine the block
-    prev_block_hash: [u8; 32], // hash of the previous block
-    merkle_root: [u8; 32], // idk
-    pub target: U256, //
+    pub timestamp: DateTime<Utc>, // timestamp of the block | each timestamp includes the previous timestamp in
+    // it's hash, hence forming a chain
+    pub nonce: u64, // number incremented to mine the block, when hash of the current has is less than
+    // the target
+    pub prev_block_hash: [u8; 32], // hash of the previous block
+    pub merkle_root: [u8; 32],     // the source of truth | hash tree propagating upwards
+    pub target: U256, // "threshold" of how much smaller a block's hash needs to be | adjusted by
+                      // Difficulty Adjustment
 }
 
-pub struct Transaction;
+impl BlockHeader {
+    fn new(
+        timestamp: DateTime<Utc>,
+        nonce: u64,
+        prev_block_hash: [u8; 32],
+        merkle_root: [u8; 32],
+        target: U256,
+    ) -> Self {
+        BlockHeader {
+            timestamp,
+            nonce,
+            prev_block_hash,
+            merkle_root,
+            target,
+        }
+    }
+    pub fn hash(&self) -> ! {
+        unimplemented!()
+    }
+}
+
+pub struct TransactionInput {
+    pub prev_trans_hash: [u8; 32], // hash of the previous transaction | creating a chain
+    pub signature: [u8; 64],       // SHA256, the signature of the user
+}
+
+// some value(the transaction)
+pub struct TransactionOutput {
+    pub value: u64,
+    pub uniq_id: Uuid,    // identifier to ensure hash of each transaction is unique
+    pub pubkey: [u8; 33], // to sign/verify
+}
+
+pub struct Transaction {
+    pub inputs: Vec<TransactionInput>,
+    pub outputs: Vec<TransactionOutput>,
+}
+
+impl Transaction {
+    // each transaction will have some input and output
+    pub fn new(inputs: Vec<TransactionInput>, outputs: Vec<TransactionOutput>) -> Self {
+        Transaction { inputs, outputs }
+    }
+}
 
 pub struct Blockchain {
     pub blocks: Vec<Block>,
