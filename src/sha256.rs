@@ -1,7 +1,9 @@
+use std::fmt::Display;
+
 use crate::U256;
-use k256::sha2::digest;
-use serde::Serialize;
-use sha256::digest;
+use serde::{Serialize,Deserialize};
+use sha2::{Digest, Sha256};
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Hash(U256);
 
 impl Hash {
@@ -14,9 +16,23 @@ impl Hash {
                 e
             );
         }
-        let hash = digest(&serialized);
-        let hash_bytes = hex::decode(hash).unwrap();
-        let hash_array: [u8; 32] = hash_bytes.as_slice().try_into().unwrap();
-        Hash(U256::from(hash_array))
+        let hash = Sha256::digest(serialized);
+        let val = U256::from_big_endian(&hash[..]);
+        Hash(val)
+    }
+
+    // checking if the computed Hash is less than the target | hence solving it
+    pub fn matches_target(&self, target: U256) -> bool {
+        self.0 <= target
+    }
+
+    pub fn zero() -> Self {
+        Hash(U256::zero())
+    }
+}
+
+impl Display for Hash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:x}", self.0)
     }
 }

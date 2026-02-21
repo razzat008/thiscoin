@@ -1,6 +1,8 @@
 #![allow(dead_code, unused)]
 use crate::U256;
 use chrono::{DateTime, Utc};
+use k256::{PublicKey, ecdsa::Signature};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub struct BlockHeader {
@@ -35,18 +37,21 @@ impl BlockHeader {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct TransactionInput {
     pub prev_trans_hash: [u8; 32], // hash of the previous transaction | creating a chain
-    pub signature: [u8; 64],       // SHA256, the signature of the user
+    pub signature: Signature,       // SHA256, the signature of the user
 }
 
 // some value(the transaction)
+#[derive(Serialize, Deserialize)]
 pub struct TransactionOutput {
     pub value: u64,
     pub uniq_id: Uuid,    // identifier to ensure hash of each transaction is unique
-    pub pubkey: [u8; 33], // to sign/verify
+    pub pubkey: PublicKey, // to sign/verify
 }
 
+#[derive(serde::Serialize, Deserialize)]
 pub struct Transaction {
     pub inputs: Vec<TransactionInput>,
     pub outputs: Vec<TransactionOutput>,
