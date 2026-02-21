@@ -19,6 +19,6 @@ hex = "0.4.3"
 k256 = { version = "0.13.4", features = ["serde", "pem"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-sha256 = "1.6.0"
+sha2 = "0.10.9"
 uint = "0.10.0"
 uuid = { version = "1.21.0", features = ["v4", "serde"] }
