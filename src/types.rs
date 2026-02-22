@@ -9,6 +9,7 @@ use k256::Secp256k1;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+//each bloack have blockheader
 #[derive(Serialize, Deserialize)]
 pub struct BlockHeader {
     pub timestamp: DateTime<Utc>, // timestamp of the block | each timestamp includes the previous timestamp in
@@ -42,6 +43,7 @@ impl BlockHeader {
     }
 }
 
+// transactions
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TransactionInput {
     pub prev_trans_hash: Hash, // hash of the previous transaction | creating a chain
@@ -73,8 +75,12 @@ impl Transaction {
     pub fn new(inputs: Vec<TransactionInput>, outputs: Vec<TransactionOutput>) -> Self {
         Transaction { inputs, outputs }
     }
+    pub fn hash(&self) -> Hash {
+        Hash::hash(self)
+    }
 }
 
+// bolockchain
 pub struct Blockchain {
     pub blocks: Vec<Block>,
 }
@@ -95,6 +101,7 @@ impl Default for Blockchain {
     }
 }
 
+// each block in a blockchain
 #[derive(Serialize, Deserialize)]
 pub struct Block {
     pub header: BlockHeader,

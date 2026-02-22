@@ -12,3 +12,4 @@ pub mod crypto;
 pub mod sha256;
 pub mod types;
 pub mod utils;
+pub mod error;
