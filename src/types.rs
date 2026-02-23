@@ -1,6 +1,9 @@
 #![allow(dead_code, unused)]
 
+use std::collections::HashMap;
+
 use crate::crypto::{PublicKey, Signature};
+use crate::error::{Result, ThisCoinError};
 use crate::sha256::Hash;
 use crate::{U256, utils::MerkleRoot};
 use chrono::{DateTime, Utc};
@@ -90,8 +93,32 @@ impl Blockchain {
         Blockchain { blocks: vec![] }
     }
 
-    pub fn add_block(&mut self, block: Block) {
-        self.blocks.push(block);
+    pub fn add_block(&mut self, block: Block) -> Result<()> {
+        // checking a block's validity
+        if self.blocks.is_empty() && block.header.prev_block_hash != Hash::zero() {
+            return Err(ThisCoinError::InvalidBlock);
+        } else if let Some(last_block) = self.blocks.last() {
+            if last_block.hash() != block.header.prev_block_hash {
+                eprint!("previous block's hash is wrong");
+                return Err(ThisCoinError::InvalidBlock);
+            }
+
+            if !block.header.hash().matches_target(block.header.target) {
+                print!("doesn't match target");
+                return Err(ThisCoinError::InvalidBlock);
+            }
+            let calc_merkle_root = MerkleRoot::calculate_merkleroot(&block.transactions);
+            if calc_merkle_root != block.header.merkle_root {
+                return Err(ThisCoinError::InvalidMerkelRoot);
+            }
+
+            if block.header.timestamp <= last_block.header.timestamp{
+                return Err(ThisCoinError::InvalidBlock);
+            }
+
+            block.
+        }
+        Ok(())
     }
 }
 
@@ -105,19 +132,23 @@ impl Default for Blockchain {
 #[derive(Serialize, Deserialize)]
 pub struct Block {
     pub header: BlockHeader,
-    pub transaction: Transaction,
+    pub transactions: Vec<Transaction>,
 }
 
 impl Block {
-    pub fn new(header: BlockHeader, transaction: Transaction) -> Self {
-        Self {
+    pub fn new(header: BlockHeader, transactions: Vec<Transaction>) -> Self {
+        Block {
             header,
-            transaction,
+            transactions,
         }
     }
 
     pub fn hash(&self) -> Hash {
         Hash::hash(self)
+    }
+
+    pub fn verify_transactions(&self,block_height: u8,utxos : &HashMap<Hash,TransactionOutput>)  {
+        todo!();
     }
 }
 

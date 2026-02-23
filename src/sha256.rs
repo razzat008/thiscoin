@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::U256;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Hash(U256);
 
 impl Hash {

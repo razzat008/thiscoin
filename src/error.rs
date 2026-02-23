@@ -24,3 +24,5 @@ pub enum ThisCoinError {
     #[error("Invalid private key")]
     InvalidPrivateKey,
 }
+
+pub type Result<T> = std::result::Result<T, ThisCoinError>;
