@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::U256;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Hash(U256);
 
 impl Hash {
@@ -28,6 +28,10 @@ impl Hash {
 
     pub fn zero() -> Self {
         Hash(U256::zero())
+    }
+
+    pub fn as_bytes(&mut self) -> [u8; 32] {
+         self.0.to_little_endian()
     }
 }
 

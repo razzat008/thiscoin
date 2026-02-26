@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 //each bloack have blockheader
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Clone, Deserialize, Debug)]
 pub struct BlockHeader {
     pub timestamp: DateTime<Utc>, // timestamp of the block | each timestamp includes the previous timestamp in
     // it's hash, hence forming a chain
@@ -47,14 +47,14 @@ impl BlockHeader {
 }
 
 // transactions
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Clone, Deserialize, Debug)]
 pub struct TransactionInput {
     pub prev_trans_hash: Hash, // hash of the previous transaction | creating a chain
     pub signature: Signature,  // SHA256, the signature of the user
 }
 
 // some value(the transaction)
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TransactionOutput {
     pub value: u64,
     pub uniq_id: Uuid, // identifier to ensure hash of each transaction is unique
@@ -67,7 +67,7 @@ impl TransactionOutput {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Clone, Deserialize, Debug)]
 pub struct Transaction {
     pub inputs: Vec<TransactionInput>,
     pub outputs: Vec<TransactionOutput>,
@@ -84,13 +84,18 @@ impl Transaction {
 }
 
 // bolockchain
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Blockchain {
-    pub blocks: Vec<Block>,
+    pub utxos: HashMap<Hash, TransactionOutput>, //unspent transaction output
+    pub blocks: Vec<Block>,                      // blocks in the Blockchain
 }
 
 impl Blockchain {
     pub fn new() -> Self {
-        Blockchain { blocks: vec![] }
+        Blockchain {
+            blocks: vec![],
+            utxos: HashMap::new(),
+        }
     }
 
     pub fn add_block(&mut self, block: Block) -> Result<()> {
@@ -112,13 +117,29 @@ impl Blockchain {
                 return Err(ThisCoinError::InvalidMerkelRoot);
             }
 
-            if block.header.timestamp <= last_block.header.timestamp{
+            if block.header.timestamp <= last_block.header.timestamp {
                 return Err(ThisCoinError::InvalidBlock);
             }
 
-            block.
+            block.verify_transactions(self.blocks, &self.utxos);
         }
+        self.blocks.push(block);
         Ok(())
+    }
+
+    pub fn rebuild_uxtos(&mut self) {
+        for block in &self.blocks {
+            for transaction in &block.transactions {
+                for input in &transaction.inputs {
+                    // destorying the coin (creating chunks)
+                    self.utxos.remove(&input.prev_trans_hash);
+                }
+                // giving remaining coin back
+                for output in transaction.outputs.iter() {
+                    self.utxos.insert(transaction.hash(), output.clone());
+                }
+            }
+        }
     }
 }
 
@@ -129,7 +150,7 @@ impl Default for Blockchain {
 }
 
 // each block in a blockchain
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Clone, Deserialize, Debug)]
 pub struct Block {
     pub header: BlockHeader,
     pub transactions: Vec<Transaction>,
@@ -147,7 +168,11 @@ impl Block {
         Hash::hash(self)
     }
 
-    pub fn verify_transactions(&self,block_height: u8,utxos : &HashMap<Hash,TransactionOutput>)  {
+    pub fn verify_transactions(
+        &self,
+        block_height: u8,
+        utxos: &HashMap<Hash, TransactionOutput>,
+    ) -> Result<()> {
         todo!();
     }
 }
