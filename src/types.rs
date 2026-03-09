@@ -1,6 +1,7 @@
 #![allow(dead_code, unused)]
 
 use std::collections::HashMap;
+use std::fs::read;
 
 use crate::crypto::{PublicKey, Signature};
 use crate::error::{Result, ThisCoinError};
@@ -24,6 +25,9 @@ pub struct BlockHeader {
     pub target: U256, // "threshold" of how much smaller a block's hash needs to be | adjusted by
                       // Difficulty Adjustment
 }
+
+type InputMap = HashMap<Hash, TransactionOutput>;
+type OutputMap = HashMap<Hash, TransactionInput>;
 
 impl BlockHeader {
     fn new(
@@ -121,10 +125,14 @@ impl Blockchain {
                 return Err(ThisCoinError::InvalidBlock);
             }
 
-            block.verify_transactions(self.blocks, &self.utxos);
+            block.verify_transactions(self.block_height(), &self.utxos);
         }
         self.blocks.push(block);
         Ok(())
+    }
+
+    pub fn block_height(&self) -> u64 {
+        self.blocks.len() as u64
     }
 
     pub fn rebuild_uxtos(&mut self) {
@@ -168,12 +176,89 @@ impl Block {
         Hash::hash(self)
     }
 
-    pub fn verify_transactions(
+    // first transaction in a newly mined block in the blockchain; created by the miner who 'solves'
+    // the block's puzzle | it has no inputs unlike other transaction in the blockchain
+    pub fn verify_coinbase_transaction(
         &self,
-        block_height: u8,
+        block_height: u64,
         utxos: &HashMap<Hash, TransactionOutput>,
     ) -> Result<()> {
-        todo!();
+        let coinbase_transaction = &self.transactions.first().unwrap();
+        if !coinbase_transaction.inputs.is_empty() && coinbase_transaction.outputs.is_empty() {
+            return Err(ThisCoinError::InvalidTransaction);
+        }
+
+        let miner_fees = self.calculate_miner_fees(utxos)?;
+
+        Ok(())
+    }
+
+    pub fn verify_transactions(
+        &self,
+        block_height: u64,
+        utxos: &HashMap<Hash, TransactionOutput>,
+    ) -> Result<()> {
+        let mut inputs = InputMap::new();
+        if self.transactions.is_empty() {
+            return Err(ThisCoinError::InvalidTransaction);
+        }
+
+        self.verify_coinbase_transaction(block_height, utxos)?;
+        for transaction in &self.transactions {
+            let mut input_val = 0;
+            let mut output_val = 0;
+            for input in &transaction.inputs {
+                let prev_output = utxos
+                    .get(&input.prev_trans_hash)
+                    .ok_or(ThisCoinError::InvalidTransaction)?;
+
+                if inputs.contains_key(&input.prev_trans_hash) {
+                    return Err(ThisCoinError::InvalidTransaction);
+                }
+                if !input
+                    .signature
+                    .verify(&input.prev_trans_hash, &prev_output.pubkey)
+                {
+                    return Err(ThisCoinError::InvalidSignature);
+                }
+                input_val += prev_output.value;
+                inputs.insert(input.prev_trans_hash, prev_output.clone());
+            }
+            for output in &transaction.outputs {
+                output_val += output.value;
+            }
+
+            if input_val < output_val {
+                return Err(ThisCoinError::InvalidTransaction);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn calculate_miner_fees(&self, utxos: &HashMap<Hash, TransactionOutput>) -> Result<u64> {
+        let mut inputs = InputMap::new();
+        let mut outputs: HashMap<Hash, TransactionOutput> = HashMap::new();
+
+        // skip first transaction(coinbase transaction)
+        for transaction in self.transactions.iter().skip(1) {
+            for input in &transaction.inputs {
+                let prev_output = utxos.get(&input.prev_trans_hash);
+                if prev_output.is_none() || inputs.contains_key(&input.prev_trans_hash) {
+                    return Err(ThisCoinError::InvalidTransaction);
+                }
+                inputs.insert(input.prev_trans_hash, prev_output.unwrap().clone());
+            }
+            for output in &transaction.outputs {
+                if outputs.contains_key(&output.hash()) {
+                    return Err(ThisCoinError::InvalidTransaction);
+                }
+                outputs.insert(output.hash(), output.clone());
+            }
+        }
+        let input_value: u64 = inputs.values().map(|output| output.value).sum();
+        let output_value: u64 = outputs.values().map(|output| output.value).sum();
+
+        Ok(input_value - output_value)
     }
 }
 
