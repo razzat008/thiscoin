@@ -1,8 +1,9 @@
 #![allow(dead_code, unused)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::read;
 
+use crate::HALVING_INTERVAL;
 use crate::crypto::{PublicKey, Signature};
 use crate::error::{Result, ThisCoinError};
 use crate::sha256::Hash;
@@ -91,7 +92,10 @@ impl Transaction {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Blockchain {
     pub utxos: HashMap<Hash, TransactionOutput>, //unspent transaction output
-    pub blocks: Vec<Block>,                      // blocks in the Blockchain
+    pub target: U256,
+    pub blocks: Vec<Block>, // blocks in the Blockchain
+    #[serde(default)]
+    mempool: Vec<Transaction>,
 }
 
 impl Blockchain {
@@ -99,6 +103,8 @@ impl Blockchain {
         Blockchain {
             blocks: vec![],
             utxos: HashMap::new(),
+            target: crate::MIN_TARGET,
+            mempool: vec![],
         }
     }
 
@@ -127,7 +133,12 @@ impl Blockchain {
 
             block.verify_transactions(self.block_height(), &self.utxos);
         }
+        let block_transactions: HashSet<_> =
+            block.transactions.iter().map(|tx| tx.hash()).collect();
+        self.mempool
+            .retain(|(_, tx)| !block_transactions.contains(&tx.hash()));
         self.blocks.push(block);
+        // self.try_adjust_target();
         Ok(())
     }
 
@@ -148,6 +159,9 @@ impl Blockchain {
                 }
             }
         }
+    }
+    pub fn mempool(&self) -> &[Transaction] {
+        &self.mempool
     }
 }
 
@@ -189,6 +203,26 @@ impl Block {
         }
 
         let miner_fees = self.calculate_miner_fees(utxos)?;
+        // assuming blockheight doesn't reach greater than u64
+        let block_reward = crate::INITIAL_REWARD * 10u64.pow(8)
+            / 2u64.pow((block_height / crate::HALVING_INTERVAL) as u32);
+        // something like this would also work
+        // let halvings = (block_height/crate::HALVING_INTERVAL) as u32;
+        // // at 64th halving bitcoin rewards 0 to the miner
+        // if halvings>=64 {
+        //     return Ok(());
+        // }
+        // let block_reward = (crate::INITIAL_REWARD*100_000_000) >>halvings;
+
+        let total_coinbase_outputs: u64 = coinbase_transaction
+            .outputs
+            .iter()
+            .map(|output| output.value)
+            .sum();
+
+        if total_coinbase_outputs != block_reward + miner_fees {
+            return Err(ThisCoinError::InvalidTransaction);
+        }
 
         Ok(())
     }
@@ -243,12 +277,14 @@ impl Block {
         for transaction in self.transactions.iter().skip(1) {
             for input in &transaction.inputs {
                 let prev_output = utxos.get(&input.prev_trans_hash);
+                // validating source of funds and if this transaction is already comitted
                 if prev_output.is_none() || inputs.contains_key(&input.prev_trans_hash) {
                     return Err(ThisCoinError::InvalidTransaction);
                 }
                 inputs.insert(input.prev_trans_hash, prev_output.unwrap().clone());
             }
             for output in &transaction.outputs {
+                // checking for double-spending
                 if outputs.contains_key(&output.hash()) {
                     return Err(ThisCoinError::InvalidTransaction);
                 }
